@@ -1,65 +1,111 @@
 from socket import *
 import base64
-import time
 
-msg = "\r\n 1° Teste"
+# Mail content
+subject = "I love computer networks!"
+contenttype = "text/plain"
+msg = "I love computer networks!"
 endmsg = "\r\n.\r\n"
-mailserver = ("treze.labredes.info", 587) #Fill in start #Fill in end
-clientSocket = socket(AF_INET, SOCK_STREAM)
-clientSocket.connect(mailserver)
-recv = clientSocket.recv(1024)
-recv = recv.decode()
-print("Message after connection request:" + recv)
+
+# Choose a mail server (e.g. Google mail server) and call it mailserver 
+# If you don't know, just search the University / enterprise mailbox server directly, most of which are 25 port sending ports
+mailserver = "mail.labredes.info"
+
+# Sender and reciever
+fromaddress = "cassia"
+toaddress = "hector@labredes.info"
+
+# Auth information (Encode with base64)
+username = base64.b64encode(fromaddress.encode()).decode()
+password = base64.b64encode("123456".encode()).decode()
+
+
+# Create socket called clientSocket and establish a TCP connection with mailserver
+clientSocket = socket(AF_INET, SOCK_STREAM) 
+clientSocket.connect((mailserver, 587))
+
+recv = clientSocket.recv(1024).decode()
+print(recv)
 if recv[:3] != '220':
     print('220 reply not received from server.')
-heloCommand = 'EHLO Alice\r\n'
+
+# Send HELO command and print server response.
+heloCommand = 'HELO Alice\r\n'
 clientSocket.send(heloCommand.encode())
-recv1 = clientSocket.recv(1024)
-recv1 = recv1.decode()
-print("Message after EHLO command:" + recv1)
+recv1 = clientSocket.recv(1024).decode()
+print(recv1)
 if recv1[:3] != '250':
     print('250 reply not received from server.')
 
-#Info for username and password
-username = "cassia"
-password = "123456"
-base64_str = ("\x00"+username+"\x00"+password).encode()
-base64_str = base64.b64encode(base64_str)
-authMsg = "AUTH PLAIN ".encode()+base64_str+"\r\n".encode()
-clientSocket.send(authMsg)
-recv_auth = clientSocket.recv(1024)
-print(recv_auth.decode())
 
-mailFrom = "MAIL FROM:<cassia@labredes.info>\r\n"
-clientSocket.send(mailFrom.encode())
-recv2 = clientSocket.recv(1024)
-recv2 = recv2.decode()
+# Auth must be authorized after hello
+clientSocket.sendall('AUTH LOGIN\r\n'.encode())
+recv = clientSocket.recv(1024).decode()
+print(recv)
+if (recv[:3] != '334'):
+	print('334 reply not received from server')
 
-print("After MAIL FROM command: "+recv2)
-rcptTo = "RCPT TO:<hector@labredes.info>\r\n"
-clientSocket.send(rcptTo.encode())
-recv3 = clientSocket.recv(1024)
-recv3 = recv3.decode()
+clientSocket.sendall((username + '\r\n').encode())
+recv = clientSocket.recv(1024).decode()
+print(recv)
+if (recv[:3] != '334'):
+	print('334 reply not received from server')
 
-print("After RCPT TO command: "+recv3)
-data = "DATA\r\n"
-clientSocket.send(data.encode())
-recv4 = clientSocket.recv(1024)
-recv4 = recv4.decode()
+clientSocket.sendall((password + '\r\n').encode())
+recv = clientSocket.recv(1024).decode()
+print(recv)
+if (recv[:3] != '235'):
+	print('235 reply not received from server')
 
-print("After DATA command: "+recv4)
-subject = "Subject: testando a hora novamente\r\n\r\n" 
-clientSocket.send(subject.encode())
-date = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime())
-date = date + "\r\n\r\n"
+# Send MAIL FROM command and print server response.
+# Fill in start
+#sendall will send all the data until the error or all the data are sent, and send will send less than the required number of bytes
+clientSocket.sendall(('MAIL FROM: <'+fromaddress+'>\r\n').encode())
+recv2 = clientSocket.recv(1024).decode()
+print(recv2)
+if (recv2[:3] != '250'):
+    print('250 reply not received from server.')
+# Fill in end
 
-clientSocket.send(date.encode())
-clientSocket.send(msg.encode())
-clientSocket.send(endmsg.encode())
-recv_msg = clientSocket.recv(1024)
-print("Response after sending message body:"+recv_msg.decode())
-quit = "QUIT\r\n"
-clientSocket.send(quit.encode())
-recv5 = clientSocket.recv(1024)
-print(recv5.decode())
+# Send RCPT TO command and print server response. 
+# Fill in start the command here is wrong. It's not MAIL, it's RCPT
+clientSocket.sendall(('RCPT TO: <'+toaddress+'>\r\n').encode())
+recv3 = clientSocket.recv(1024).decode()
+print(recv3)
+if (recv3[:3] != '250'):
+    print('250 reply not received from server.')
+
+# Fill in end
+# Send DATA command and print server response. 
+# Fill in start
+clientSocket.send(('DATA\r\n').encode())
+recv = clientSocket.recv(1024).decode()
+print(recv)
+if (recv[:3] != '354'):
+    print('354 reply not received from server')
+# Fill in end
+
+# Send message data.
+# Fill in start
+message = 'from:' + fromaddress + '@labredes.info' + '\r\n'
+message += 'to:' + toaddress + '\r\n'
+message += 'subject:' + subject + '\r\n'
+message += 'Content-Type:' + contenttype + '\r\n'
+message += '\r\n' + msg
+clientSocket.sendall(message.encode())
+
+# Fill in end
+# Message ends with a single period.
+# Fill in start
+clientSocket.sendall(endmsg.encode())
+recv = clientSocket.recv(1024).decode()
+print(recv)
+if (recv[:3] != '250'):
+	print('250 reply not received from server')
+# Fill in end
+# Send QUIT command and get server response.
+# Fill in start
+clientSocket.sendall('QUIT\r\n'.encode())
+# Fill in end
+
 clientSocket.close()

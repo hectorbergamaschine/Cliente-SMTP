@@ -1,111 +1,104 @@
-from socket import *
+import socket
+import getpass
 import base64
 
-# Mail content
-subject = "I love computer networks!"
-contenttype = "text/plain"
-msg = "I love computer networks!"
-endmsg = "\r\n.\r\n"
+#Criando a conexão TCP com o servidor usando a porta do SMTP
+serverName = "mail.labredes.info"
+serverPort = 587
+tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+tcp.connect((serverName, serverPort))
+recv = tcp.recv(1024)
 
-# Choose a mail server (e.g. Google mail server) and call it mailserver 
-# If you don't know, just search the University / enterprise mailbox server directly, most of which are 25 port sending ports
-mailserver = "mail.labredes.info"
+recv = recv.decode()
 
-# Sender and reciever
-fromaddress = "cassia"
-toaddress = "hector@labredes.info"
-
-# Auth information (Encode with base64)
-username = base64.b64encode(fromaddress.encode()).decode()
-password = base64.b64encode("123456".encode()).decode()
-
-
-# Create socket called clientSocket and establish a TCP connection with mailserver
-clientSocket = socket(AF_INET, SOCK_STREAM) 
-clientSocket.connect((mailserver, 587))
-
-recv = clientSocket.recv(1024).decode()
-print(recv)
 if recv[:3] != '220':
-    print('220 reply not received from server.')
+    print('\nResposta não recebida pelo servidor.')
 
-# Send HELO command and print server response.
-heloCommand = 'HELO Alice\r\n'
-clientSocket.send(heloCommand.encode())
-recv1 = clientSocket.recv(1024).decode()
-print(recv1)
-if recv1[:3] != '250':
-    print('250 reply not received from server.')
+#Executando o comando Helo para acessar a caixa de e-mail
+heloCommand = 'HELO Lab\r\n'
+tcp.send(heloCommand.encode())
+recv = tcp.recv(1024)
+recv = recv.decode()
+
+if recv[:3] != '250':
+    print('\nResposta não recebida pelo servidor.')
+else:
+    print('\nConexão estabelecida')
 
 
-# Auth must be authorized after hello
-clientSocket.sendall('AUTH LOGIN\r\n'.encode())
-recv = clientSocket.recv(1024).decode()
-print(recv)
-if (recv[:3] != '334'):
-	print('334 reply not received from server')
 
-clientSocket.sendall((username + '\r\n').encode())
-recv = clientSocket.recv(1024).decode()
-print(recv)
-if (recv[:3] != '334'):
-	print('334 reply not received from server')
+#Realizando autenticação do usuário
+def loginSM():
 
-clientSocket.sendall((password + '\r\n').encode())
-recv = clientSocket.recv(1024).decode()
-print(recv)
-if (recv[:3] != '235'):
-	print('235 reply not received from server')
+    global username
 
-# Send MAIL FROM command and print server response.
-# Fill in start
-#sendall will send all the data until the error or all the data are sent, and send will send less than the required number of bytes
-clientSocket.sendall(('MAIL FROM: <'+fromaddress+'>\r\n').encode())
-recv2 = clientSocket.recv(1024).decode()
-print(recv2)
-if (recv2[:3] != '250'):
-    print('250 reply not received from server.')
-# Fill in end
+    username = input("\nEntre com seu e-mail: ")
+    password = getpass.getpass(prompt='\nPassword: ', stream=None)
 
-# Send RCPT TO command and print server response. 
-# Fill in start the command here is wrong. It's not MAIL, it's RCPT
-clientSocket.sendall(('RCPT TO: <'+toaddress+'>\r\n').encode())
-recv3 = clientSocket.recv(1024).decode()
-print(recv3)
-if (recv3[:3] != '250'):
-    print('250 reply not received from server.')
+    base64_str = ("\x00"+username+"\x00"+password).encode()
+    base64_str = base64.b64encode(base64_str)
+    authMsg = "AUTH PLAIN ".encode()+base64_str+"\r\n".encode()
+    tcp.send(authMsg)
+    recv_auth = tcp.recv(1024)
 
-# Fill in end
-# Send DATA command and print server response. 
-# Fill in start
-clientSocket.send(('DATA\r\n').encode())
-recv = clientSocket.recv(1024).decode()
-print(recv)
-if (recv[:3] != '354'):
-    print('354 reply not received from server')
-# Fill in end
+    recv = (recv_auth.decode())
 
-# Send message data.
-# Fill in start
-message = 'from:' + fromaddress + '@labredes.info' + '\r\n'
-message += 'to:' + toaddress + '\r\n'
-message += 'subject:' + subject + '\r\n'
-message += 'Content-Type:' + contenttype + '\r\n'
-message += '\r\n' + msg
-clientSocket.sendall(message.encode())
+    if (recv[:3] != '235'):
+        print('\nResposta não recebida do servidor.')
 
-# Fill in end
-# Message ends with a single period.
-# Fill in start
-clientSocket.sendall(endmsg.encode())
-recv = clientSocket.recv(1024).decode()
-print(recv)
-if (recv[:3] != '250'):
-	print('250 reply not received from server')
-# Fill in end
-# Send QUIT command and get server response.
-# Fill in start
-clientSocket.sendall('QUIT\r\n'.encode())
-# Fill in end
+#Função para enviar o e-mail
+def enviarEmail():
 
-clientSocket.close()
+    contenttype = "text/plain" #informando para o servidor que o conteúdo se trata de um texto simples
+    fromaddress = username
+    toaddress = input('\nDigite o destinatário: ')
+    subject = input('\nDigite o assunto: ')
+    msg = input('\nDigite a mensagem: ')
+    endmsg = "\r\n.\r\n"
+
+    
+    # Enviando o comando MAIL FROM e imprimindo a resposta do servidor casou houver erro.
+    tcp.sendall(('MAIL FROM: <'+fromaddress+'>\r\n').encode())
+    recv = tcp.recv(1024).decode()
+    if (recv[:3] != '250'):
+        print('\nResposta não recebida do servidor.')
+    
+
+    # Enviando o comando RCPT e imprimindo a resposta do servidor casou houver erro.
+    tcp.sendall(('RCPT TO: <'+toaddress+'>\r\n').encode())
+    recv = tcp.recv(1024).decode()
+    if (recv[:3] != '250'):
+        print('\nResposta não recebida do servidor.')
+
+
+    # Enviando o comando DATA e imprimindo a resposta do servidor casou houver erro.
+    tcp.send(('DATA\r\n').encode())
+    recv = tcp.recv(1024).decode()
+    if (recv[:3] != '354'):
+        print('Resposta não recebida do servidor')
+
+
+    #Enviando dados da mensagem para o destinatário
+    message = 'from:' + fromaddress + '@labredes.info' + '\r\n'
+    message += 'to:' + toaddress + '\r\n'
+    message += 'subject:' + subject + '\r\n'
+    message += 'Content-Type:' + contenttype + '\r\n'
+    message += '\r\n' + msg
+    tcp.sendall(message.encode())
+
+
+    #Informando o fim da mensagem para o servidor e imprimindo a resposta caso houver erro
+    tcp.sendall(endmsg.encode())
+    recv = tcp.recv(1024).decode()
+    if (recv[:3] != '250'):
+        print('Resposta não recebida do servidor')
+    else:
+        print('\nMensagem enviada com sucesso!\n')
+
+    tcp.sendall('QUIT\r\n'.encode())
+
+loginSM()
+
+enviarEmail()
+
+tcp.close()
